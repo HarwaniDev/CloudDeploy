@@ -12,7 +12,6 @@ const pool = new Pool({
 const BASE_PATH = 'https://storage.googleapis.com/cloudeploy_assets/__outputs'
 
 const proxy = httpProxy.createProxy()
-console.log(process.env.DATABASE_URL);
 app.use(async (req, res) => {
     const hostname = req.hostname;
     const subdomain = hostname.split('.')[0];
