@@ -5,7 +5,7 @@ import {
     createTRPCRouter,
     protectedProcedure,
 } from "~/server/api/trpc";
-
+import { triggerJob } from "~/lib/runJob";
 
 export const projectRouter = createTRPCRouter({
     getProjects: protectedProcedure
@@ -91,7 +91,7 @@ export const projectRouter = createTRPCRouter({
         .input(z.object({
             projectId: z.string()
         }))
-        .query(async({ ctx, input }) => {
+        .query(async ({ ctx, input }) => {
             const project = await ctx.db.project.findUnique({
                 where: {
                     id: input.projectId
@@ -122,7 +122,7 @@ export const projectRouter = createTRPCRouter({
             // Ensure project belongs to the current user
             const project = await ctx.db.project.findFirst({
                 where: { id: input.projectId, userId: ctx.session.user.id },
-                select: { id: true },
+                select: { id: true, repoUrl: true },
             });
             if (!project) {
                 throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
@@ -134,11 +134,40 @@ export const projectRouter = createTRPCRouter({
                     status: "PENDING",
                 },
             });
-
-            // Optionally: enqueue background job here in the future
-
+            triggerJob(ctx.headers, deployment.id, input.projectId, project.repoUrl)
+                .then(() => console.log(`Job triggered for project ${input.projectId}`))
+                .catch((err) => console.error("Error triggering job:", err));
             return deployment;
         }),
+    // update deployment status for a project
+    updateDeployment: protectedProcedure
+        .input(z.object({
+            deploymentId: z.string(),
+            buildStatus: z.enum([
+                "PENDING",
+                "BUILDING",
+                "SUCCESS",
+                "FAILED"
+            ])
+        }))
+        .mutation(async ({ input, ctx }) => {
+            const deployment = await ctx.db.deployment.findUnique({
+                where: {
+                    id: input.deploymentId
+                }
+            });
+            if (!deployment) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Deployment not found" });
+            };
+            await ctx.db.deployment.update({
+                where: {
+                    id: input.deploymentId
+                },
+                data: {
+                    status: input.buildStatus
+                }
+            });
+        })
 })
 
 function generateSubdomainFromName(name: string): string {
