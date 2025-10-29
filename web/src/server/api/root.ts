@@ -1,5 +1,5 @@
 import { postRouter } from "~/server/api/routers/post";
-import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
+import { createCallerFactory, createTRPCContext, createTRPCRouter } from "~/server/api/trpc";
 import { projectRouter } from "./routers/project";
 
 /**
@@ -23,3 +23,10 @@ export type AppRouter = typeof appRouter;
  *       ^? Post[]
  */
 export const createCaller = createCallerFactory(appRouter);
+
+// Helper to create a server-side caller within a valid request context.
+// Use inside server components, route handlers, or server actions.
+export async function getServerCaller(requestHeaders: Readonly<Headers>) {
+  const ctx = await createTRPCContext({ headers: new Headers(requestHeaders) });
+  return createCaller(ctx);
+}
