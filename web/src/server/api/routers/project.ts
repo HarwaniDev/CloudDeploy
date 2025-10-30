@@ -81,9 +81,9 @@ export const projectRouter = createTRPCRouter({
                     repoUrl: normalizedRepoUrl,
                     branch,
                     subdomain: uniqueSubdomain,
+                    deployUrl: `${uniqueSubdomain}.0xdevs.xyz`
                 },
             });
-
             return newProject;
         }),
     // get details for a specific project
@@ -134,6 +134,12 @@ export const projectRouter = createTRPCRouter({
                     status: "PENDING",
                 },
             });
+            await ctx.db.project.update({
+                where: { id: input.projectId, userId: ctx.session.user.id },
+                data: {
+                    lastDeployedAt: deployment.createdAt
+                }
+            })
             triggerJob(ctx.headers, deployment.id, input.projectId, project.repoUrl)
                 .then(() => console.log(`Job triggered for project ${input.projectId}`))
                 .catch((err) => console.error("Error triggering job:", err));
@@ -159,14 +165,25 @@ export const projectRouter = createTRPCRouter({
             if (!deployment) {
                 throw new TRPCError({ code: "NOT_FOUND", message: "Deployment not found" });
             };
-            await ctx.db.deployment.update({
-                where: {
-                    id: input.deploymentId
-                },
-                data: {
-                    status: input.buildStatus
-                }
-            });
+
+            await Promise.all([
+                ctx.db.deployment.update({
+                    where: {
+                        id: input.deploymentId
+                    },
+                    data: {
+                        status: input.buildStatus
+                    }
+                }),
+                ctx.db.project.update({
+                    where: {
+                        id: deployment.projectId
+                    },
+                    data: {
+                        buildStatus: input.buildStatus
+                    }
+                })
+            ]);
         })
 })
 
