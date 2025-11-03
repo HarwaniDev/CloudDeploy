@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import { Skeleton } from "~/components/ui/skeleton"
 import { api } from "~/trpc/react"
+import toast from "react-hot-toast"
 
 type Project = {
   id: string
@@ -66,6 +67,7 @@ export default function DashboardPage() {
           htmlUrl: r.html_url as string,
           description: (r.description as string | null) ?? null,
           private: Boolean(r.private),
+          pushed_at: r.pushed_at
         }));
         if (!cancelled) setRepos(mapped);
       } catch (e: any) {
@@ -98,12 +100,20 @@ export default function DashboardPage() {
         name: projectName.trim(),
         repoUrl: selectedRepo.cloneUrl,
         branch: branch.trim() || "main",
+        pushed_at: selectedRepo.pushed_at
       });
       await refetch();
       setIsModalOpen(false);
       setSelectedRepo(null);
-    } catch (e) {
+      toast.success("Project imported successfully!");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to import project");
     }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setReposError(null);
   };
   return (
     <main className="min-h-dvh bg-background">
@@ -133,8 +143,8 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center justify-center rounded-lg border bg-card py-16 text-center">
             <div className="mb-2 text-lg font-medium">No projects yet</div>
             <div className="mb-4 text-sm text-muted-foreground">Create your first project to get started.</div>
-            <Button asChild className="bg-primary text-primary-foreground">
-              <Link href="/projects/new">New Project</Link>
+            <Button className="bg-primary text-primary-foreground" onClick={() => setIsModalOpen(true)}>
+              New Project
             </Button>
           </div>
         ) : (
@@ -142,6 +152,7 @@ export default function DashboardPage() {
             {data.map((p: Project) => {
               const lastDeployed = p.lastDeployedAt ? p.lastDeployedAt.toLocaleString() : "Never";
               const repoAndBranch = `${p.repoUrl} · ${p.branch}`;
+              const isDeployed = p.buildStatus === "SUCCESS" && Boolean(p.deployUrl);
               return (
                 <Card key={p.id} className="flex flex-col">
                   <CardHeader>
@@ -160,15 +171,21 @@ export default function DashboardPage() {
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/projects/${p.id}`}>Open</Link>
                         </Button>
-                        <Button size="sm" asChild className="bg-primary text-primary-foreground">
-                          <Link
-                            href={p.deployUrl ? `https://${p.deployUrl}` : "#"}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
+                        {isDeployed ? (
+                          <Button size="sm" asChild className="bg-primary text-primary-foreground">
+                            <Link
+                              href={`https://${p.deployUrl}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Visit
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button size="sm" disabled title="Not deployed yet">
                             Visit
-                          </Link>
-                        </Button>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -181,11 +198,11 @@ export default function DashboardPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setIsModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={handleCloseModal} />
           <div className="relative z-10 w-full max-w-2xl rounded-lg border bg-card p-4 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <div className="text-base font-semibold">New Project</div>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>Close</Button>
+              <Button variant="outline" onClick={handleCloseModal}>Close</Button>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -255,7 +272,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={handleCloseModal}>Cancel</Button>
               <Button
                 className="bg-primary text-primary-foreground"
                 onClick={handleCreate}
@@ -281,4 +298,5 @@ type GitHubRepo = {
   htmlUrl: string
   description: string | null
   private: boolean
+  pushed_at: string
 }
