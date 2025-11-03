@@ -33,8 +33,7 @@ The Web app provides a clean, responsive UI for managing projects and watching d
 
 ### Authentication (GitHub OAuth)
 1. User clicks “Sign in with GitHub”.
-2. GitHub redirects back with an auth code; the Request Server exchanges it for tokens.
-3. The user session is established. Repos can then be imported and connected to projects.
+2. The user session is established. Repos can then be imported and connected to projects.
 
 ### Deployments
 1. A manual trigger creates a deployment request.
