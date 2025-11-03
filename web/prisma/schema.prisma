@@ -39,6 +39,7 @@ model Project {
   lastDeployedAt DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  pushed_at      DateTime?
 
   user    User     @relation(fields: [userId], references: [id])
   domains Domain[]
