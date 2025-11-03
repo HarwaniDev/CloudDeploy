@@ -4,10 +4,39 @@ import { TRPCError } from "@trpc/server";
 import {
     createTRPCRouter,
     protectedProcedure,
+    publicProcedure,
 } from "~/server/api/trpc";
 import { triggerJob } from "~/lib/runJob";
 
 export const projectRouter = createTRPCRouter({
+    getRecentDeployedProjects: publicProcedure
+        .input(z.object({ limit: z.number().min(1).max(24).optional() }).optional())
+        .query(async ({ ctx, input }) => {
+            const take = input?.limit ?? 6;
+            const projects = await ctx.db.project.findMany({
+                where: {
+                    buildStatus: "SUCCESS",
+                    deployUrl: { not: null },
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    deployUrl: true,
+                    subdomain: true,
+                    lastDeployedAt: true,
+                },
+                orderBy: [
+                    { lastDeployedAt: "desc" },
+                    { updatedAt: "desc" },
+                ],
+                take,
+            });
+            return projects.map((p) => ({
+                id: p.id,
+                name: p.name,
+                url: p.deployUrl ?? `${p.subdomain}.0xdevs.xyz`,
+            }));
+        }),
     getProjects: protectedProcedure
         .query(async ({ ctx }) => {
             const projects = await ctx.db.project.findMany({
@@ -46,6 +75,7 @@ export const projectRouter = createTRPCRouter({
                     .regex(/^[A-Za-z0-9._\-\/]+$/, "Invalid branch name")
                     .optional()
                     .default("main"),
+                    pushed_at: z.string().optional()
             }),
         )
         .mutation(async ({ ctx, input }) => {
@@ -81,7 +111,8 @@ export const projectRouter = createTRPCRouter({
                     repoUrl: normalizedRepoUrl,
                     branch,
                     subdomain: uniqueSubdomain,
-                    deployUrl: `${uniqueSubdomain}.0xdevs.xyz`
+                    deployUrl: `${uniqueSubdomain}.0xdevs.xyz`,
+                    pushed_at: input.pushed_at
                 },
             });
             return newProject;
@@ -184,6 +215,56 @@ export const projectRouter = createTRPCRouter({
                     }
                 })
             ]);
+        }),
+    addLogs: protectedProcedure
+        .input(z.object({
+            projectId: z.string(),
+            logs: z.array(z.object({
+                message: z.string()
+            }))
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const project = await ctx.db.project.findUnique({
+                where: {
+                    id: input.projectId
+                }
+            });
+            if (!project) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+            };
+            const data = input.logs.map((log) => ({
+                ...log,
+                userId: ctx.session.user.id,
+                projectId: input.projectId
+            }));
+            // Delete previous logs for this project and then insert new logs, so that only fresh logs appear
+            await ctx.db.log.deleteMany({
+                where: { projectId: input.projectId }
+            });
+            await ctx.db.log.createMany({ data });
+
+        }),
+
+    getLogs: protectedProcedure
+        .input(z.object({
+            projectId: z.string()
+        }))
+        .query(async ({ ctx, input }) => {
+            const project = await ctx.db.project.findUnique({
+                where: {
+                    id: input.projectId,
+                    userId: ctx.session.user.id
+                },
+                select: {
+                    logs: {
+                        orderBy: { createdAt: "asc" }
+                    }
+                }
+            });
+            if (!project) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" })
+            };
+            return project.logs;
         })
 })
 
