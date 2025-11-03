@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "~
 import { Badge } from "~/components/ui/badge"
 import { LogsViewer } from "~/components/logs-viewer"
 import { api } from "~/trpc/react"
+import toast from "react-hot-toast"
 
 
 export default function ProjectPage() {
@@ -20,6 +21,10 @@ export default function ProjectPage() {
       // refetch project to get the new deployment and logs
       await utils.project.getProject.invalidate({ projectId: projectId as string })
       await refetch()
+      toast.success("Deployment started successfully!")
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to start deployment")
     },
   })
 
@@ -44,9 +49,13 @@ export default function ProjectPage() {
           <p className="text-sm text-muted-foreground">
             {data?.name && data.branch ? `Branch: ${data.branch}` : "Loading repo..."}
           </p>
-          <p className="text-sm text-muted-foreground">
-            {data?.name && data.deployUrl ? `url: ${data.deployUrl}` : "Loading url..."}
-          </p>
+          <Link href={data?.deployUrl ? `https://${data.deployUrl}` : (data?.repoUrl ?? "#")}
+                target="_blank"
+                rel="noopener noreferrer">
+            <p className="text-sm text-muted-foreground">
+              {data?.name && data.deployUrl ? `url: ${data.deployUrl}` : "Loading url..."}
+            </p>
+          </Link>
         </div>
 
         <Tabs defaultValue="deployments" className="w-full">
@@ -118,7 +127,7 @@ export default function ProjectPage() {
           <TabsContent value="logs" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Live Logs (latest deployment)</CardTitle>
+                <CardTitle className="text-base">Logs (latest deployment)</CardTitle>
               </CardHeader>
               <CardContent>
                 {data?.deployments && data.deployments.length > 0 ? (
