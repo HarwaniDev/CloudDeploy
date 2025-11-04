@@ -7,7 +7,7 @@ import { TRPCError } from '@trpc/server';
 
 const client = new JobsClient();
 // TODO:- process.env.REDIS_URL is not working. Look into it
-const subscriber = new Redis("rediss://default:AXrpAAIncDIzN2QyNTBkM2QwNDE0MWNlYmExNzViMGYxNTdmMTYxZnAyMzE0NjU@distinct-clam-31465.upstash.io:6379");
+const subscriber = new Redis("process.env.REDIS_URL");
 
 export async function triggerJob(requestHeaders: Readonly<Headers>, deploymentId: string, PROJECT_ID: string, GIT_REPOSITORY__URL: string) {
     // Full resource name for the job
